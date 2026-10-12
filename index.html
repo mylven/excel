@@ -412,6 +412,7 @@
             cell.textContent = displayValue(address);
             cell.dataset.address = address;
             cell.setAttribute('role', 'gridcell');
+            cell.tabIndex = -1;
             cell.setAttribute('aria-label', `${address}: ${cell.textContent}`);
             cell.style.fontWeight = style.bold ? '700' : '';
             cell.style.fontStyle = style.italic ? 'italic' : '';
@@ -502,11 +503,21 @@
         toastTimer = setTimeout(() => toast.classList.remove('show'), 2100);
       }
 
-      function startEdit(cell) {
+      let cancelEdit = false;
+
+      function startEdit(cell, replaceWith) {
         isEditing = true;
+        cancelEdit = false;
         cell.contentEditable = 'true';
+        cell.textContent = replaceWith ?? (values.get(cell.dataset.address) || '');
         cell.focus();
-        document.execCommand('selectAll', false, null);
+        const range = document.createRange();
+        range.selectNodeContents(cell);
+        range.collapse(replaceWith !== undefined);
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+        if (replaceWith === undefined) document.execCommand('selectAll', false, null);
       }
 
       grid.addEventListener('click', (event) => {
@@ -535,6 +546,7 @@
         if (!cell) return;
         cell.contentEditable = 'false';
         isEditing = false;
+        if (cancelEdit) { cancelEdit = false; render(); return; }
         setCellValue(cell.dataset.address, cell.textContent);
       });
       grid.addEventListener('keydown', (event) => {
@@ -546,7 +558,7 @@
         const row = Number(match[2]);
         if (cell.isContentEditable) {
           if (event.key === 'Enter') { event.preventDefault(); cell.blur(); focusCell(cellAddress(column, Math.min(rows, row + 1))); }
-          if (event.key === 'Escape') { cell.textContent = displayValue(address); cell.blur(); }
+          if (event.key === 'Escape') { cancelEdit = true; cell.blur(); }
           return;
         }
         const movements = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0], Enter: [0, 1], Tab: [1, 0] };
@@ -559,7 +571,7 @@
         } else if (event.key === 'Delete' || event.key === 'Backspace') {
           event.preventDefault(); setCellValue(address, '');
         } else if (event.key.length === 1 && !event.ctrlKey && !event.metaKey) {
-          event.preventDefault(); cell.textContent = event.key; cell.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+          event.preventDefault(); startEdit(cell, event.key);
         }
       });
       formulaInput.addEventListener('input', () => { isEditing = true; });
