@@ -176,7 +176,7 @@
     (() => {
       const rows = 32;
       const columns = 37;
-      const storageKey = 'lapka-workbook-v2';
+      const storageKey = 'lapka-workbook-v3';
       let zoomScale = 1;
       const grid = document.getElementById('sheet-grid');
       const formulaInput = document.getElementById('formula-input');
@@ -206,49 +206,18 @@
         return [11, 20, 29].includes(column) ? 150 : 36;
       };
 
-      function addBlock(startRow, title, ip, prefix, withIp) {
-        const toNumber = (octets) => octets.reduce((total, octet) => total * 256 + octet, 0);
-        const toOctets = (number) => [24, 16, 8, 0].map((shift) => (number >>> shift) & 255);
-        const mask = prefix === 0 ? 0 : (0xFFFFFFFF << (32 - prefix)) >>> 0;
-        const network = (toNumber(ip) & mask) >>> 0;
-        const broadcast = (network | ~mask) >>> 0;
-        const rowsData = [];
-        if (withIp) rowsData.push(['IP cím', `${ip.join('.')}/${prefix}`, ip]);
-        rowsData.push(['SUBNETMASK', toOctets(mask).join('.'), toOctets(mask)]);
-        rowsData.push(['NETWORK', toOctets(network).join('.'), toOctets(network)]);
-        rowsData.push(['HOSTMIN', toOctets(network + 1).join('.'), toOctets(network + 1)]);
-        rowsData.push(['HOSTMAX', toOctets(broadcast - 1).join('.'), toOctets(broadcast - 1)]);
-        rowsData.push(['BROADCAST', toOctets(broadcast).join('.'), toOctets(broadcast)]);
-        for (let column = 1; column <= columns; column += 1) styles.set(cellAddress(column, startRow), { fill: '#6aa84f' });
-        values.set(cellAddress(1, startRow), title);
+      function buildWorksheet() {
         for (let octet = 0; octet < 4; octet += 1) {
           for (let bit = 0; bit < 8; bit += 1) {
-            const address = cellAddress(bitColumn(octet, bit), startRow + 1);
+            const address = cellAddress(bitColumn(octet, bit), 1);
             values.set(address, String(128 >> bit));
-            styles.set(address, { align: 'center' });
+            styles.set(address, { align: 'center', bold: true });
           }
         }
-        rowsData.forEach(([label, text, octets], index) => {
-          const row = startRow + 2 + index;
-          values.set(cellAddress(1, row), label);
-          values.set(cellAddress(2, row), text);
-          octets.forEach((value, octet) => {
-            value.toString(2).padStart(8, '0').split('').forEach((digit, bit) => {
-              const address = cellAddress(bitColumn(octet, bit), row);
-              values.set(address, digit);
-              styles.set(address, { align: 'center' });
-            });
-          });
+        ['IP cím', 'SUBNETMASK', 'NETWORK', 'HOSTMIN', 'HOSTMAX', 'BROADCAST', 'HOSTS'].forEach((label, index) => {
+          values.set(cellAddress(1, index + 2), label);
+          styles.set(cellAddress(1, index + 2), { bold: true });
         });
-        const hostsRow = startRow + 2 + rowsData.length;
-        values.set(cellAddress(1, hostsRow), 'HOSTS');
-        values.set(cellAddress(2, hostsRow), String(Math.max(2 ** (32 - prefix) - 2, 0)));
-        styles.set(cellAddress(2, hostsRow), { align: 'right' });
-      }
-
-      function buildWorksheet() {
-        addBlock(1, 'Alap:', [172, 20, 10, 0], 24, true);
-        addBlock(12, 'Telephely 1:', [172, 20, 10, 0], 26, false);
       }
       const saved = (() => {
         try { return JSON.parse(localStorage.getItem(storageKey) || 'null'); }
