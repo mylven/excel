@@ -212,6 +212,8 @@
       };
       const cellAddress = (column, row) => `${columnName(column)}${row}`;
       const bitColumn = (octet, bit) => 3 + octet * 9 + bit;
+      const columnNumber = (label) => [...label].reduce((total, character) => total * 26 + character.charCodeAt(0) - 64, 0);
+      const isBitColumn = (column) => column >= 3 && (column - 3) % 9 < 8 && column <= 37;
       const columnWidth = (column) => {
         if (column === 1) return 150;
         if (column === 2) return 160;
@@ -465,12 +467,31 @@
         }
       }
 
+      function syncIp(row) {
+        const octets = [];
+        let any = false;
+        for (let octet = 0; octet < 4; octet += 1) {
+          let number = 0;
+          for (let bit = 0; bit < 8; bit += 1) {
+            const value = (values.get(cellAddress(bitColumn(octet, bit), row)) || '').trim();
+            if (value !== '' && value !== '0' && value !== '1') return;
+            if (value !== '') any = true;
+            number = number * 2 + (value === '1' ? 1 : 0);
+          }
+          octets.push(number);
+        }
+        if (any) values.set(cellAddress(2, row), octets.join('.'));
+        else values.delete(cellAddress(2, row));
+      }
+
       function setCellValue(address, value) {
         const cleaned = value.trim();
         if (cleaned) values.set(address, cleaned);
         else values.delete(address);
         const target = address.match(/^B(\d+)$/);
         if (target && Number(target[1]) >= 2 && Number(target[1]) <= 7) syncBits(Number(target[1]));
+        const bitCell = address.match(/^([A-Z]+)(\d+)$/);
+        if (bitCell && isBitColumn(columnNumber(bitCell[1])) && Number(bitCell[2]) >= 2 && Number(bitCell[2]) <= 7) syncIp(Number(bitCell[2]));
         persist();
         render();
       }
@@ -672,6 +693,8 @@
         const match = activeCell.match(/^([A-Z]+)(\d+)$/);
         const startColumn = [...match[1]].reduce((total, character) => total * 26 + character.charCodeAt(0) - 64, 0);
         const startRow = Number(match[2]);
+        const ipRows = new Set();
+        const bitRows = new Set();
         text.replace(/\r/g, '').split('\n').forEach((line, rowOffset) => {
           line.split('\t').forEach((value, columnOffset) => {
             const row = startRow + rowOffset;
@@ -680,11 +703,16 @@
               const address = cellAddress(column, row);
               if (value) values.set(address, value);
               else values.delete(address);
+              if (column === 2) ipRows.add(row);
+              else if (isBitColumn(column)) bitRows.add(row);
               selected.add(address);
             }
           });
         });
-        for (let row = 2; row <= 7; row += 1) syncBits(row);
+        for (let row = 2; row <= 7; row += 1) {
+          if (ipRows.has(row)) syncBits(row);
+          else if (bitRows.has(row)) syncIp(row);
+        }
         persist(); render();
       });
       document.addEventListener('keydown', (event) => {
