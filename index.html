@@ -1,0 +1,649 @@
+<!doctype html>
+<html lang="hu">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#176b53">
+  <title>Lapka – táblázatkezelő</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --green: #176b53;
+      --green-dark: #105640;
+      --green-soft: #e8f3ed;
+      --ink: #202d29;
+      --muted: #77847e;
+      --line: #e4e9e5;
+      --panel: #fff;
+      --canvas: #f5f7f5;
+      --row-head: 52px;
+      --col-width: 124px;
+      font-family: "Aptos", "Calibri", "Segoe UI", sans-serif;
+      color: var(--ink);
+      background: var(--canvas);
+      font-synthesis: none;
+      text-rendering: optimizeLegibility;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-width: 0; width: 100%; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+    button, input { font: inherit; color: inherit; }
+    button { cursor: pointer; }
+    .topbar { height: 58px; flex: 0 0 auto; display: flex; align-items: center; gap: 16px; padding: 0 22px; background: var(--green); color: #fff; }
+    .brand { display: flex; align-items: center; gap: 10px; min-width: 190px; }
+    .brand-mark { width: 29px; height: 31px; display: grid; place-items: center; border: 1px solid #ffffff80; border-radius: 4px; font-size: 18px; font-weight: 750; }
+    .brand-name { font: 600 21px Georgia, serif; letter-spacing: 0; }
+    .file-title { width: min(290px, 30vw); padding: 7px 9px; border: 1px solid transparent; border-radius: 4px; color: #fff; background: transparent; font-size: 14px; }
+    .file-title:hover, .file-title:focus { outline: 0; border-color: #ffffff70; background: #ffffff12; }
+    .saved-state { color: #d6e9de; font-size: 12px; white-space: nowrap; }
+    .top-spacer { flex: 1; }
+    .top-action { min-height: 34px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 0 12px; border: 1px solid #ffffff5c; border-radius: 4px; background: transparent; color: #fff; font-size: 13px; }
+    .top-action:hover { background: #ffffff16; }
+    .avatar { width: 31px; height: 31px; display: grid; place-items: center; border-radius: 50%; background: #d8eddf; color: var(--green-dark); font-size: 12px; font-weight: 700; }
+    .menubar { height: 43px; flex: 0 0 auto; display: flex; align-items: stretch; gap: 3px; padding: 0 18px; overflow-x: auto; border-bottom: 1px solid var(--line); background: var(--panel); }
+    .menu-item { padding: 0 13px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: #47534d; font-size: 13px; }
+    .menu-item:hover { background: #f5f7f5; }
+    .menu-item.active { border-bottom-color: var(--green); color: var(--green-dark); font-weight: 650; }
+    .toolbar { min-height: 48px; flex: 0 0 auto; display: flex; align-items: center; gap: 5px; padding: 6px 17px; overflow-x: auto; border-bottom: 1px solid var(--line); background: var(--panel); }
+    .tool { width: 34px; height: 32px; flex: 0 0 auto; display: grid; place-items: center; border: 1px solid transparent; border-radius: 4px; background: transparent; color: #45514b; font-size: 15px; }
+    .tool:hover, .tool[aria-pressed="true"] { border-color: #d6e4dc; background: var(--green-soft); color: var(--green-dark); }
+    .tool.text-tool { font-size: 14px; font-weight: 700; }
+    .tool svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+    .divider { width: 1px; height: 23px; margin: 0 5px; background: var(--line); }
+    .select-control { height: 32px; padding: 0 26px 0 9px; border: 1px solid #e2e7e3; border-radius: 4px; background: #fff; font-size: 12px; }
+    .font-select { width: 145px; }
+    .size-select { width: 67px; }
+    .align-spacer { flex: 1; }
+    .toolbar-hint { margin-right: 4px; color: #89938d; font-size: 11px; }
+    .formula-row { height: 43px; flex: 0 0 auto; display: flex; align-items: center; gap: 9px; padding: 5px 19px; border-bottom: 1px solid var(--line); background: #fff; }
+    .name-box { width: 77px; height: 29px; padding: 0 8px; border: 1px solid #dfe5e0; border-radius: 3px; text-align: center; font-size: 12px; }
+    .fx-mark { color: var(--green); font: italic 700 15px Georgia, serif; }
+    .formula-divider { width: 1px; height: 22px; background: var(--line); }
+    .formula-input { height: 29px; flex: 1; padding: 0 7px; border: 1px solid transparent; border-radius: 3px; outline: none; font-size: 13px; }
+    .formula-input:focus { border-color: #cbd9d0; }
+    .sheet-area { min-height: 0; flex: 1; overflow: auto; background: #fff; }
+    .sheet-grid { display: grid; width: max-content; min-width: 100%; grid-template-columns: var(--row-head) repeat(18, var(--col-width)); grid-template-rows: 29px repeat(35, 29px); }
+    .corner, .column-heading, .row-heading { position: sticky; z-index: 2; display: grid; place-items: center; border-right: 1px solid #e4e9e5; border-bottom: 1px solid #e4e9e5; background: #f4f6f4; color: #65716b; font-size: 11px; font-weight: 500; }
+    .corner { left: 0; top: 0; z-index: 4; }
+    .column-heading { top: 0; }
+    .row-heading { left: 0; z-index: 1; }
+    .column-heading.selected, .row-heading.selected { background: #e7eee9; color: var(--green-dark); font-weight: 700; }
+    .cell { min-width: 0; height: 29px; padding: 4px 7px; overflow: hidden; border-right: 1px solid #edf0ed; border-bottom: 1px solid #edf0ed; background: #fff; color: #27342e; font-size: 12px; white-space: nowrap; outline: none; }
+    .cell:focus { position: relative; z-index: 1; overflow: visible; border: 2px solid var(--green); padding: 3px 6px; box-shadow: 0 0 0 1px #fff; }
+    .cell.selected { position: relative; z-index: 1; outline: 2px solid var(--green); outline-offset: -2px; }
+    .cell.formula { color: #263d33; }
+    .cell.header-cell { background: #f4f7f5; font-weight: 650; }
+    .cell.currency { text-align: right; }
+    .bottom-bar { height: 43px; flex: 0 0 auto; display: flex; align-items: center; gap: 7px; padding: 0 15px; border-top: 1px solid var(--line); background: #fff; }
+    .sheet-nav { width: 27px; height: 27px; display: grid; place-items: center; border: 0; border-radius: 3px; background: transparent; color: #64716b; font-size: 17px; }
+    .sheet-nav:hover { background: #f0f3f0; }
+    .sheet-tab { height: 42px; margin-bottom: -1px; padding: 0 16px; border: 0; border-bottom: 2px solid var(--green); background: transparent; color: var(--green-dark); font-size: 12px; font-weight: 650; }
+    .add-sheet { width: 28px; height: 28px; display: grid; place-items: center; border: 0; border-radius: 50%; background: transparent; color: #56635c; font-size: 19px; }
+    .add-sheet:hover { background: #eef3ef; }
+    .status-spacer { flex: 1; }
+    .status-label { color: #7a867f; font-size: 11px; }
+    .status-value { margin-left: 4px; color: #36453d; font-size: 11px; font-weight: 600; }
+    .zoom { width: 104px; accent-color: var(--green); }
+    .zoom-label { width: 35px; color: #68756e; font-size: 11px; text-align: right; }
+    .toast { position: fixed; right: 22px; bottom: 57px; z-index: 10; padding: 10px 14px; border-radius: 4px; background: #263b31; color: #fff; font-size: 12px; opacity: 0; transform: translateY(6px); transition: opacity .18s ease, transform .18s ease; pointer-events: none; }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+    @media (max-width: 900px) {
+      :root { --col-width: 104px; }
+      .brand { min-width: 146px; }
+      .font-select { width: 110px; }
+      .toolbar-hint { display: none; }
+      .topbar { gap: 10px; padding: 0 14px; }
+    }
+    @media (max-width: 600px) {
+      .topbar { height: 54px; gap: 8px; padding: 0 10px; }
+      .brand { min-width: 0; }
+      .brand-name { display: none; }
+      .file-title { min-width: 0; flex: 1; width: 100px; padding-left: 5px; }
+      .saved-state, .avatar { display: none; }
+      .top-action { padding: 0 9px; }
+      .menubar { padding: 0 7px; }
+      .menu-item { padding: 0 10px; }
+      .toolbar { padding: 6px 9px; }
+      .formula-row { gap: 6px; padding: 5px 9px; }
+      .name-box { width: 62px; }
+      .bottom-bar { gap: 4px; padding: 0 7px; }
+      .sheet-tab { padding: 0 10px; }
+      .status-label, .status-value, .bottom-bar .divider { display: none; }
+      .status-spacer { min-width: 4px; }
+      .zoom { width: 72px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><div class="brand-mark" aria-hidden="true">L</div><span class="brand-name">lapka</span></div>
+    <label class="visually-hidden" for="document-title">Táblázat neve</label>
+    <input class="file-title" id="document-title" value="Negyedéves terv" aria-label="Táblázat neve">
+    <span class="saved-state" id="save-state">Minden módosítás mentve</span>
+    <div class="top-spacer"></div>
+    <button class="top-action" id="export-button" type="button" title="Letöltés CSV-fájlként">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 17v3h14v-3"/></svg>
+      Letöltés
+    </button>
+    <div class="avatar" aria-label="Felhasználó: Anna">AN</div>
+  </header>
+  <nav class="menubar" aria-label="Szalagmenü">
+    <button class="menu-item active" type="button">Kezdőlap</button>
+    <button class="menu-item" type="button" data-message="A beszúrási eszközök hamarosan elérhetők.">Beszúrás</button>
+    <button class="menu-item" type="button" data-message="Az elrendezési eszközök hamarosan elérhetők.">Elrendezés</button>
+    <button class="menu-item" type="button" data-message="A függvények a képletsávban érhetők el, például: =SZUM(B2:B5)">Képletek</button>
+    <button class="menu-item" type="button" data-message="A nézetbeállítások hamarosan elérhetők.">Nézet</button>
+  </nav>
+  <section class="toolbar" aria-label="Formázás">
+    <select class="select-control font-select" aria-label="Betűtípus"><option>Aptos</option><option>Calibri</option><option>Georgia</option><option>Courier New</option></select>
+    <select class="select-control size-select" id="font-size" aria-label="Betűméret"><option>10</option><option selected>12</option><option>14</option><option>16</option><option>20</option></select>
+    <span class="divider"></span>
+    <button class="tool text-tool" id="bold-button" type="button" title="Félkövér (Ctrl+B)" aria-label="Félkövér" aria-pressed="false">B</button>
+    <button class="tool text-tool" id="italic-button" type="button" title="Dőlt (Ctrl+I)" aria-label="Dőlt" aria-pressed="false"><i>I</i></button>
+    <button class="tool" id="text-color-button" type="button" title="Betűszín" aria-label="Betűszín" style="color:#176b53">A</button>
+    <button class="tool" id="fill-color-button" type="button" title="Háttérszín" aria-label="Háttérszín">▧</button>
+    <span class="divider"></span>
+    <button class="tool" data-align="left" type="button" title="Balra igazítás" aria-label="Balra igazítás">≡</button>
+    <button class="tool" data-align="center" type="button" title="Középre igazítás" aria-label="Középre igazítás">☷</button>
+    <button class="tool" data-align="right" type="button" title="Jobbra igazítás" aria-label="Jobbra igazítás">≣</button>
+    <span class="align-spacer"></span>
+    <span class="toolbar-hint">Tipp: képletekhez kezdj = jellel</span>
+    <button class="tool" id="clear-button" type="button" title="Tartalom törlése" aria-label="Tartalom törlése">⌫</button>
+  </section>
+  <div class="formula-row">
+    <input class="name-box" id="name-box" aria-label="Cella neve" value="A1">
+    <span class="formula-divider"></span><span class="fx-mark" aria-hidden="true">fx</span>
+    <label class="visually-hidden" for="formula-input">Képlet vagy cellaérték</label>
+    <input class="formula-input" id="formula-input" aria-label="Képlet vagy cellaérték" spellcheck="false">
+  </div>
+  <main class="sheet-area" id="sheet-area" aria-label="Táblatartomány">
+    <div class="sheet-grid" id="sheet-grid" role="grid" aria-label="Negyedéves terv táblázat"></div>
+  </main>
+  <footer class="bottom-bar">
+    <button class="sheet-nav" type="button" aria-label="Előző munkalap">‹</button>
+    <button class="sheet-nav" type="button" aria-label="Következő munkalap">›</button>
+    <button class="sheet-tab" type="button">Terv 2026</button>
+    <button class="add-sheet" id="add-sheet" type="button" title="Új munkalap" aria-label="Új munkalap">+</button>
+    <div class="status-spacer"></div>
+    <span class="status-label">Kijelölés összege:</span><span class="status-value" id="selection-sum">0</span>
+    <span class="divider"></span><span class="status-label" id="selection-count">1 cella</span>
+    <span class="divider"></span><input class="zoom" id="zoom" type="range" min="75" max="130" value="100" aria-label="Nagyítás">
+    <span class="zoom-label" id="zoom-label">100%</span>
+  </footer>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <input id="csv-input" class="visually-hidden" type="file" accept=".csv,text/csv">
+  <script>
+    (() => {
+      const rows = 35;
+      const columns = 18;
+      const storageKey = 'lapka-workbook-v1';
+      const grid = document.getElementById('sheet-grid');
+      const formulaInput = document.getElementById('formula-input');
+      const nameBox = document.getElementById('name-box');
+      const toast = document.getElementById('toast');
+      const values = new Map();
+      const styles = new Map();
+      const selected = new Set();
+      let activeCell = 'A1';
+      let isEditing = false;
+      let saveTimer;
+      let toastTimer;
+      const columnName = (number) => {
+        let name = '';
+        while (number > 0) {
+          number -= 1;
+          name = String.fromCharCode(65 + number % 26) + name;
+          number = Math.floor(number / 26);
+        }
+        return name;
+      };
+      const cellAddress = (column, row) => `${columnName(column)}${row}`;
+      const initialData = [
+        ['Projekt / kategória', 'Terv (Ft)', 'Tény (Ft)', 'Eltérés', 'Állapot'],
+        ['Termékfejlesztés', 2400000, 2180000, '=B2-C2', 'Folyamatban'],
+        ['Marketing', 1250000, 1195000, '=B3-C3', 'Folyamatban'],
+        ['Infrastruktúra', 980000, 1040000, '=B4-C4', 'Figyelmet igényel'],
+        ['Ügyféltámogatás', 760000, 702000, '=B5-C5', 'Rendben'],
+        ['Kutatás', 1650000, 1430000, '=B6-C6', 'Folyamatban'],
+        ['Összesen', '=SZUM(B2:B6)', '=SZUM(C2:C6)', '=SZUM(D2:D6)', '']
+      ];
+      const saved = (() => {
+        try { return JSON.parse(localStorage.getItem(storageKey) || 'null'); }
+        catch { return null; }
+      })();
+      if (saved && saved.values) {
+        Object.entries(saved.values).forEach(([key, value]) => values.set(key, value));
+        Object.entries(saved.styles || {}).forEach(([key, value]) => styles.set(key, value));
+        if (saved.title) document.getElementById('document-title').value = saved.title;
+      } else {
+        initialData.forEach((row, rowIndex) => row.forEach((value, columnIndex) => {
+          values.set(cellAddress(columnIndex + 1, rowIndex + 1), String(value));
+        }));
+        for (let column = 1; column <= initialData[0].length; column += 1) {
+          styles.set(cellAddress(column, 1), { bold: true, fill: '#e8f3ed', color: '#164e3c' });
+        }
+        for (let column = 1; column <= 5; column += 1) {
+          styles.set(cellAddress(column, 7), { bold: true, fill: '#f1f5f2', color: '#20342b' });
+        }
+      }
+
+      function tokenize(expression) {
+        const tokens = [];
+        const pattern = /\s*(?:(\d+(?:\.\d+)?)|([A-Z]{1,3}\d+)|([A-ZÁÉÍÓÖŐÚÜŰ]+)|(:|[()+\-*/^,]))/gy;
+        let position = 0;
+        while (position < expression.length) {
+          pattern.lastIndex = position;
+          const match = pattern.exec(expression);
+          if (!match) throw new Error('Érvénytelen képlet');
+          const token = match[1] ? { type: 'number', value: Number(match[1]) }
+            : match[2] ? { type: 'reference', value: match[2] }
+            : match[3] ? { type: 'identifier', value: match[3] }
+            : { type: match[4], value: match[4] };
+          tokens.push(token);
+          position = pattern.lastIndex;
+        }
+        return tokens;
+      }
+
+      function evaluateFormula(address, visiting = new Set()) {
+        const raw = values.get(address) ?? '';
+        if (!raw.startsWith('=')) return numericValue(raw);
+        if (visiting.has(address)) throw new Error('Körkörös hivatkozás');
+        const nextVisiting = new Set(visiting);
+        nextVisiting.add(address);
+        const tokens = tokenize(raw.slice(1).toUpperCase());
+        let cursor = 0;
+        const peek = () => tokens[cursor];
+        const eat = (type) => {
+          if (peek()?.type !== type) throw new Error('Érvénytelen képlet');
+          return tokens[cursor++];
+        };
+        const rangeValues = (start, end) => {
+          const first = start.match(/^([A-Z]+)(\d+)$/);
+          const last = end.match(/^([A-Z]+)(\d+)$/);
+          if (!first || !last) throw new Error('Érvénytelen tartomány');
+          const columnNumber = (label) => [...label].reduce((total, character) => total * 26 + character.charCodeAt(0) - 64, 0);
+          const minColumn = Math.min(columnNumber(first[1]), columnNumber(last[1]));
+          const maxColumn = Math.max(columnNumber(first[1]), columnNumber(last[1]));
+          const minRow = Math.min(Number(first[2]), Number(last[2]));
+          const maxRow = Math.max(Number(first[2]), Number(last[2]));
+          const result = [];
+          for (let row = minRow; row <= maxRow; row += 1) {
+            for (let column = minColumn; column <= maxColumn; column += 1) {
+              result.push(evaluateFormula(cellAddress(column, row), nextVisiting));
+            }
+          }
+          return result;
+        };
+        const primary = () => {
+          const token = peek();
+          if (!token) throw new Error('Érvénytelen képlet');
+          if (token.type === '+') { cursor += 1; return primary(); }
+          if (token.type === '-') { cursor += 1; return -primary(); }
+          if (token.type === 'number') { cursor += 1; return token.value; }
+          if (token.type === '(') {
+            cursor += 1;
+            const result = additive();
+            eat(')');
+            return result;
+          }
+          if (token.type === 'reference') {
+            cursor += 1;
+            if (peek()?.type === ':') {
+              cursor += 1;
+              return { range: rangeValues(token.value, eat('reference').value) };
+            }
+            return evaluateFormula(token.value, nextVisiting);
+          }
+          if (token.type === 'identifier') {
+            cursor += 1;
+            eat('(');
+            const args = [];
+            if (peek()?.type !== ')') {
+              do {
+                args.push(additive());
+                if (peek()?.type !== ',') break;
+                cursor += 1;
+              } while (true);
+            }
+            eat(')');
+            const flattened = args.flatMap((argument) => argument?.range || [argument]);
+            const numbers = flattened.filter((number) => Number.isFinite(number));
+            switch (token.value) {
+              case 'SZUM': case 'SUM': return numbers.reduce((sum, number) => sum + number, 0);
+              case 'ÁTLAG': case 'AVERAGE': return numbers.length ? numbers.reduce((sum, number) => sum + number, 0) / numbers.length : 0;
+              case 'MIN': return numbers.length ? Math.min(...numbers) : 0;
+              case 'MAX': return numbers.length ? Math.max(...numbers) : 0;
+              case 'DARAB': case 'COUNT': return numbers.length;
+              default: throw new Error('Ismeretlen függvény');
+            }
+          }
+          throw new Error('Érvénytelen képlet');
+        };
+        const power = () => {
+          let result = primary();
+          if (peek()?.type === '^') { cursor += 1; result = result ** power(); }
+          return result;
+        };
+        const multiplicative = () => {
+          let result = power();
+          while (peek()?.type === '*' || peek()?.type === '/') {
+            const operator = tokens[cursor++].type;
+            const right = power();
+            result = operator === '*' ? result * right : result / right;
+          }
+          return result;
+        };
+        const additive = () => {
+          let result = multiplicative();
+          while (peek()?.type === '+' || peek()?.type === '-') {
+            const operator = tokens[cursor++].type;
+            const right = multiplicative();
+            result = operator === '+' ? result + right : result - right;
+          }
+          return result;
+        };
+        const result = additive();
+        if (cursor !== tokens.length || typeof result !== 'number' || !Number.isFinite(result)) throw new Error('Érvénytelen képlet');
+        return result;
+      }
+
+      function numericValue(value) {
+        if (value === '' || value == null) return 0;
+        const number = Number(String(value).replace(/\s/g, '').replace(',', '.'));
+        return Number.isFinite(number) ? number : 0;
+      }
+
+      function displayValue(address) {
+        const value = values.get(address) ?? '';
+        if (!value.startsWith('=')) return value;
+        try {
+          const result = evaluateFormula(address);
+          return new Intl.NumberFormat('hu-HU', { maximumFractionDigits: 2 }).format(result);
+        } catch {
+          return '#HIBA';
+        }
+      }
+
+      function render() {
+        const fragment = document.createDocumentFragment();
+        const corner = document.createElement('div');
+        corner.className = 'corner';
+        corner.setAttribute('aria-hidden', 'true');
+        fragment.append(corner);
+        for (let column = 1; column <= columns; column += 1) {
+          const heading = document.createElement('div');
+          heading.className = `column-heading${activeCell.startsWith(columnName(column)) ? ' selected' : ''}`;
+          heading.textContent = columnName(column);
+          heading.dataset.column = String(column);
+          fragment.append(heading);
+        }
+        for (let row = 1; row <= rows; row += 1) {
+          const rowHeading = document.createElement('div');
+          rowHeading.className = `row-heading${Number(activeCell.match(/\d+$/)?.[0]) === row ? ' selected' : ''}`;
+          rowHeading.textContent = String(row);
+          fragment.append(rowHeading);
+          for (let column = 1; column <= columns; column += 1) {
+            const address = cellAddress(column, row);
+            const cell = document.createElement('div');
+            const style = styles.get(address) || {};
+            cell.className = 'cell';
+            if (selected.has(address)) cell.classList.add('selected');
+            if ((values.get(address) || '').startsWith('=')) cell.classList.add('formula');
+            if (row === 1 && column <= 5) cell.classList.add('header-cell');
+            if (column >= 2 && column <= 4 && row >= 2 && row <= 7) cell.classList.add('currency');
+            cell.textContent = displayValue(address);
+            cell.dataset.address = address;
+            cell.setAttribute('role', 'gridcell');
+            cell.setAttribute('aria-label', `${address}: ${cell.textContent}`);
+            cell.style.fontWeight = style.bold ? '700' : '';
+            cell.style.fontStyle = style.italic ? 'italic' : '';
+            cell.style.color = style.color || '';
+            cell.style.backgroundColor = style.fill || '';
+            cell.style.textAlign = style.align || '';
+            cell.style.fontSize = style.size ? `${style.size}px` : '';
+            fragment.append(cell);
+          }
+        }
+        grid.replaceChildren(fragment);
+        updateFormulaBar();
+        updateSelectionStatus();
+      }
+
+      function updateFormulaBar() {
+        nameBox.value = activeCell;
+        if (document.activeElement !== formulaInput) formulaInput.value = values.get(activeCell) || '';
+        grid.querySelectorAll('.cell').forEach((cell) => cell.classList.toggle('selected', selected.has(cell.dataset.address)));
+      }
+
+      function persist() {
+        const data = {
+          title: document.getElementById('document-title').value,
+          values: Object.fromEntries(values),
+          styles: Object.fromEntries(styles)
+        };
+        localStorage.setItem(storageKey, JSON.stringify(data));
+        const state = document.getElementById('save-state');
+        state.textContent = 'Mentve';
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(() => { state.textContent = 'Minden módosítás mentve'; }, 1100);
+      }
+
+      function setCellValue(address, value) {
+        const cleaned = value.trim();
+        if (cleaned) values.set(address, cleaned);
+        else values.delete(address);
+        persist();
+        render();
+      }
+
+      function updateSelectionStatus() {
+        const numbers = [...selected].map((address) => numericValue(displayValue(address))).filter((value) => value !== 0);
+        document.getElementById('selection-sum').textContent = new Intl.NumberFormat('hu-HU', { maximumFractionDigits: 2 }).format(numbers.reduce((sum, number) => sum + number, 0));
+        document.getElementById('selection-count').textContent = `${Math.max(selected.size, 1)} ${selected.size === 1 ? 'cella' : 'cella'}`;
+      }
+
+      function focusCell(address, extend = false) {
+        const match = address.toUpperCase().match(/^([A-Z]{1,2})(\d{1,2})$/);
+        if (!match) return;
+        const column = [...match[1]].reduce((total, character) => total * 26 + character.charCodeAt(0) - 64, 0);
+        const row = Number(match[2]);
+        if (column < 1 || column > columns || row < 1 || row > rows) return;
+        activeCell = cellAddress(column, row);
+        if (!extend) selected.clear();
+        selected.add(activeCell);
+        render();
+        const target = grid.querySelector(`[data-address="${activeCell}"]`);
+        target?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        target?.focus({ preventScroll: true });
+        isEditing = false;
+      }
+
+      function showToast(message) {
+        toast.textContent = message;
+        toast.classList.add('show');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => toast.classList.remove('show'), 2100);
+      }
+
+      grid.addEventListener('click', (event) => {
+        const cell = event.target.closest('.cell');
+        if (!cell) return;
+        activeCell = cell.dataset.address;
+        selected.clear();
+        selected.add(activeCell);
+        render();
+        const active = grid.querySelector(`[data-address="${activeCell}"]`);
+        active?.focus();
+      });
+      grid.addEventListener('dblclick', (event) => {
+        const cell = event.target.closest('.cell');
+        if (!cell) return;
+        isEditing = true;
+        cell.contentEditable = 'true';
+        cell.focus();
+        document.execCommand('selectAll', false, null);
+      });
+      grid.addEventListener('input', (event) => {
+        const cell = event.target.closest('.cell[contenteditable="true"]');
+        if (cell) values.set(cell.dataset.address, cell.textContent);
+      });
+      grid.addEventListener('focusout', (event) => {
+        const cell = event.target.closest('.cell[contenteditable="true"]');
+        if (!cell) return;
+        cell.contentEditable = 'false';
+        isEditing = false;
+        setCellValue(cell.dataset.address, cell.textContent);
+      });
+      grid.addEventListener('keydown', (event) => {
+        const cell = event.target.closest('.cell');
+        if (!cell) return;
+        const address = cell.dataset.address;
+        const match = address.match(/^([A-Z]+)(\d+)$/);
+        const column = [...match[1]].reduce((total, character) => total * 26 + character.charCodeAt(0) - 64, 0);
+        const row = Number(match[2]);
+        if (cell.isContentEditable) {
+          if (event.key === 'Enter') { event.preventDefault(); cell.blur(); focusCell(cellAddress(column, Math.min(rows, row + 1))); }
+          if (event.key === 'Escape') { cell.textContent = displayValue(address); cell.blur(); }
+          return;
+        }
+        const movements = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0], Enter: [0, 1], Tab: [1, 0] };
+        if (movements[event.key]) {
+          event.preventDefault();
+          focusCell(cellAddress(Math.max(1, Math.min(columns, column + movements[event.key][0])), Math.max(1, Math.min(rows, row + movements[event.key][1]))), event.shiftKey);
+        } else if (event.key === 'F2') {
+          event.preventDefault();
+          cell.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+        } else if (event.key === 'Delete' || event.key === 'Backspace') {
+          event.preventDefault(); setCellValue(address, '');
+        } else if (event.key.length === 1 && !event.ctrlKey && !event.metaKey) {
+          event.preventDefault(); cell.textContent = event.key; cell.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+        }
+      });
+      formulaInput.addEventListener('input', () => { isEditing = true; });
+      formulaInput.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          isEditing = false;
+          setCellValue(activeCell, formulaInput.value);
+          focusCell(cellAddress(Number(activeCell.match(/[A-Z]+/) && [...activeCell.match(/[A-Z]+/)[0]].reduce((sum, character) => sum * 26 + character.charCodeAt(0) - 64, 0)), Math.min(rows, Number(activeCell.match(/\d+$/)[0]) + 1)));
+        }
+        if (event.key === 'Escape') { formulaInput.value = values.get(activeCell) || ''; formulaInput.blur(); }
+      });
+      formulaInput.addEventListener('blur', () => {
+        if (isEditing) { setCellValue(activeCell, formulaInput.value); isEditing = false; }
+      });
+      nameBox.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') { focusCell(nameBox.value); nameBox.blur(); }
+      });
+      nameBox.addEventListener('blur', () => focusCell(nameBox.value));
+      document.getElementById('document-title').addEventListener('input', persist);
+      document.getElementById('clear-button').addEventListener('click', () => setCellValue(activeCell, ''));
+      document.getElementById('bold-button').addEventListener('click', (event) => {
+        const style = styles.get(activeCell) || {};
+        style.bold = !style.bold;
+        styles.set(activeCell, style);
+        event.currentTarget.setAttribute('aria-pressed', String(style.bold));
+        persist(); render();
+      });
+      document.getElementById('italic-button').addEventListener('click', (event) => {
+        const style = styles.get(activeCell) || {};
+        style.italic = !style.italic;
+        styles.set(activeCell, style);
+        event.currentTarget.setAttribute('aria-pressed', String(style.italic));
+        persist(); render();
+      });
+      document.getElementById('font-size').addEventListener('change', (event) => {
+        const style = styles.get(activeCell) || {};
+        style.size = Number(event.target.value);
+        styles.set(activeCell, style);
+        persist(); render();
+      });
+      document.querySelectorAll('[data-align]').forEach((button) => button.addEventListener('click', () => {
+        const style = styles.get(activeCell) || {};
+        style.align = button.dataset.align;
+        styles.set(activeCell, style);
+        persist(); render();
+      }));
+      document.getElementById('text-color-button').addEventListener('click', () => {
+        const style = styles.get(activeCell) || {};
+        style.color = style.color === '#176b53' ? '#263d33' : '#176b53';
+        styles.set(activeCell, style);
+        persist(); render();
+      });
+      document.getElementById('fill-color-button').addEventListener('click', () => {
+        const style = styles.get(activeCell) || {};
+        style.fill = style.fill === '#e8f3ed' ? '#fff2cc' : '#e8f3ed';
+        styles.set(activeCell, style);
+        persist(); render();
+      });
+      document.getElementById('zoom').addEventListener('input', (event) => {
+        const scale = Number(event.target.value) / 100;
+        document.documentElement.style.setProperty('--col-width', `${124 * scale}px`);
+        grid.style.gridTemplateRows = `29px repeat(${rows}, ${29 * scale}px)`;
+        grid.querySelectorAll('.cell').forEach((cell) => { cell.style.height = `${29 * scale}px`; });
+        document.getElementById('zoom-label').textContent = `${event.target.value}%`;
+      });
+      document.querySelectorAll('.menu-item[data-message]').forEach((button) => button.addEventListener('click', () => showToast(button.dataset.message)));
+      document.querySelectorAll('.menu-item').forEach((button) => button.addEventListener('click', () => {
+        document.querySelector('.menu-item.active')?.classList.remove('active');
+        button.classList.add('active');
+      }));
+      document.getElementById('add-sheet').addEventListener('click', () => showToast('Az új munkalapok hamarosan elérhetők.'));
+      document.getElementById('export-button').addEventListener('click', () => {
+        const csvRows = [];
+        for (let row = 1; row <= rows; row += 1) {
+          const rowValues = [];
+          for (let column = 1; column <= columns; column += 1) {
+            const value = values.get(cellAddress(column, row)) || '';
+            const exportValue = value.startsWith('=') ? displayValue(cellAddress(column, row)) : value;
+            rowValues.push(`"${String(exportValue).replace(/"/g, '""')}"`);
+          }
+          if (rowValues.some((value) => value !== '""')) csvRows.push(rowValues.join(';'));
+        }
+        const blob = new Blob(['\ufeff' + csvRows.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `${document.getElementById('document-title').value || 'tabla'}.csv`;
+        link.click();
+        URL.revokeObjectURL(link.href);
+        showToast('A táblázat letöltése elindult.');
+      });
+      document.querySelector('.sheet-area').addEventListener('paste', (event) => {
+        if (event.target.closest('input')) return;
+        const text = event.clipboardData?.getData('text/plain');
+        if (!text) return;
+        event.preventDefault();
+        const match = activeCell.match(/^([A-Z]+)(\d+)$/);
+        const startColumn = [...match[1]].reduce((total, character) => total * 26 + character.charCodeAt(0) - 64, 0);
+        const startRow = Number(match[2]);
+        text.replace(/\r/g, '').split('\n').forEach((line, rowOffset) => {
+          line.split('\t').forEach((value, columnOffset) => {
+            const row = startRow + rowOffset;
+            const column = startColumn + columnOffset;
+            if (row <= rows && column <= columns) {
+              const address = cellAddress(column, row);
+              if (value) values.set(address, value);
+              else values.delete(address);
+              selected.add(address);
+            }
+          });
+        });
+        persist(); render();
+      });
+      document.addEventListener('keydown', (event) => {
+        if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'b') {
+          event.preventDefault(); document.getElementById('bold-button').click();
+        }
+        if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'i') {
+          event.preventDefault(); document.getElementById('italic-button').click();
+        }
+        if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+          event.preventDefault(); persist(); showToast('A táblázat elmentve.');
+        }
+      });
+      render();
+    })();
+  </script>
+</body>
+</html>
