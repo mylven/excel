@@ -61,13 +61,13 @@
     .formula-input { height: 29px; flex: 1; padding: 0 7px; border: 1px solid transparent; border-radius: 3px; outline: none; font-size: 13px; }
     .formula-input:focus { border-color: #cbd9d0; }
     .sheet-area { min-height: 0; flex: 1; overflow: auto; background: #fff; }
-    .sheet-grid { display: grid; width: max-content; min-width: 100%; grid-template-columns: var(--row-head) repeat(18, var(--col-width)); grid-template-rows: 29px repeat(35, 29px); }
+    .sheet-grid { display: grid; width: max-content; min-width: 100%; }
     .corner, .column-heading, .row-heading { position: sticky; z-index: 2; display: grid; place-items: center; border-right: 1px solid #e4e9e5; border-bottom: 1px solid #e4e9e5; background: #f4f6f4; color: #65716b; font-size: 11px; font-weight: 500; }
     .corner { left: 0; top: 0; z-index: 4; }
     .column-heading { top: 0; }
     .row-heading { left: 0; z-index: 1; }
     .column-heading.selected, .row-heading.selected { background: #e7eee9; color: var(--green-dark); font-weight: 700; }
-    .cell { min-width: 0; height: 29px; padding: 4px 7px; overflow: hidden; border-right: 1px solid #edf0ed; border-bottom: 1px solid #edf0ed; background: #fff; color: #27342e; font-size: 12px; white-space: nowrap; outline: none; }
+    .cell { min-width: 0; height: var(--row-h, 29px); padding: 4px 7px; overflow: hidden; border-right: 1px solid #edf0ed; border-bottom: 1px solid #edf0ed; background: #fff; color: #27342e; font-size: 12px; white-space: nowrap; outline: none; }
     .cell:focus { position: relative; z-index: 1; overflow: visible; border: 2px solid var(--green); padding: 3px 6px; box-shadow: 0 0 0 1px #fff; }
     .cell.selected { position: relative; z-index: 1; outline: 2px solid var(--green); outline-offset: -2px; }
     .cell.formula { color: #263d33; }
@@ -118,7 +118,7 @@
   <header class="topbar">
     <div class="brand"><div class="brand-mark" aria-hidden="true">L</div><span class="brand-name">lapka</span></div>
     <label class="visually-hidden" for="document-title">Táblázat neve</label>
-    <input class="file-title" id="document-title" value="Negyedéves terv" aria-label="Táblázat neve">
+    <input class="file-title" id="document-title" value="Feladat" aria-label="Táblázat neve">
     <span class="saved-state" id="save-state">Minden módosítás mentve</span>
     <div class="top-spacer"></div>
     <button class="top-action" id="export-button" type="button" title="Letöltés CSV-fájlként">
@@ -157,7 +157,7 @@
     <input class="formula-input" id="formula-input" aria-label="Képlet vagy cellaérték" spellcheck="false">
   </div>
   <main class="sheet-area" id="sheet-area" aria-label="Táblatartomány">
-    <div class="sheet-grid" id="sheet-grid" role="grid" aria-label="Negyedéves terv táblázat"></div>
+    <div class="sheet-grid" id="sheet-grid" role="grid" aria-label="Feladat táblázat"></div>
   </main>
   <footer class="bottom-bar">
     <button class="sheet-nav" type="button" aria-label="Előző munkalap">‹</button>
@@ -174,9 +174,10 @@
   <input id="csv-input" class="visually-hidden" type="file" accept=".csv,text/csv">
   <script>
     (() => {
-      const rows = 35;
-      const columns = 18;
-      const storageKey = 'lapka-workbook-v1';
+      const rows = 32;
+      const columns = 37;
+      const storageKey = 'lapka-workbook-v2';
+      let zoomScale = 1;
       const grid = document.getElementById('sheet-grid');
       const formulaInput = document.getElementById('formula-input');
       const nameBox = document.getElementById('name-box');
@@ -198,15 +199,57 @@
         return name;
       };
       const cellAddress = (column, row) => `${columnName(column)}${row}`;
-      const initialData = [
-        ['Projekt / kategória', 'Terv (Ft)', 'Tény (Ft)', 'Eltérés', 'Állapot'],
-        ['Termékfejlesztés', 2400000, 2180000, '=B2-C2', 'Folyamatban'],
-        ['Marketing', 1250000, 1195000, '=B3-C3', 'Folyamatban'],
-        ['Infrastruktúra', 980000, 1040000, '=B4-C4', 'Figyelmet igényel'],
-        ['Ügyféltámogatás', 760000, 702000, '=B5-C5', 'Rendben'],
-        ['Kutatás', 1650000, 1430000, '=B6-C6', 'Folyamatban'],
-        ['Összesen', '=SZUM(B2:B6)', '=SZUM(C2:C6)', '=SZUM(D2:D6)', '']
-      ];
+      const bitColumn = (octet, bit) => 3 + octet * 9 + bit;
+      const columnWidth = (column) => {
+        if (column === 1) return 150;
+        if (column === 2) return 160;
+        return [11, 20, 29].includes(column) ? 150 : 36;
+      };
+
+      function addBlock(startRow, title, ip, prefix, withIp) {
+        const toNumber = (octets) => octets.reduce((total, octet) => total * 256 + octet, 0);
+        const toOctets = (number) => [24, 16, 8, 0].map((shift) => (number >>> shift) & 255);
+        const mask = prefix === 0 ? 0 : (0xFFFFFFFF << (32 - prefix)) >>> 0;
+        const network = (toNumber(ip) & mask) >>> 0;
+        const broadcast = (network | ~mask) >>> 0;
+        const rowsData = [];
+        if (withIp) rowsData.push(['IP cím', `${ip.join('.')}/${prefix}`, ip]);
+        rowsData.push(['SUBNETMASK', toOctets(mask).join('.'), toOctets(mask)]);
+        rowsData.push(['NETWORK', toOctets(network).join('.'), toOctets(network)]);
+        rowsData.push(['HOSTMIN', toOctets(network + 1).join('.'), toOctets(network + 1)]);
+        rowsData.push(['HOSTMAX', toOctets(broadcast - 1).join('.'), toOctets(broadcast - 1)]);
+        rowsData.push(['BROADCAST', toOctets(broadcast).join('.'), toOctets(broadcast)]);
+        for (let column = 1; column <= columns; column += 1) styles.set(cellAddress(column, startRow), { fill: '#6aa84f' });
+        values.set(cellAddress(1, startRow), title);
+        for (let octet = 0; octet < 4; octet += 1) {
+          for (let bit = 0; bit < 8; bit += 1) {
+            const address = cellAddress(bitColumn(octet, bit), startRow + 1);
+            values.set(address, String(128 >> bit));
+            styles.set(address, { align: 'center' });
+          }
+        }
+        rowsData.forEach(([label, text, octets], index) => {
+          const row = startRow + 2 + index;
+          values.set(cellAddress(1, row), label);
+          values.set(cellAddress(2, row), text);
+          octets.forEach((value, octet) => {
+            value.toString(2).padStart(8, '0').split('').forEach((digit, bit) => {
+              const address = cellAddress(bitColumn(octet, bit), row);
+              values.set(address, digit);
+              styles.set(address, { align: 'center' });
+            });
+          });
+        });
+        const hostsRow = startRow + 2 + rowsData.length;
+        values.set(cellAddress(1, hostsRow), 'HOSTS');
+        values.set(cellAddress(2, hostsRow), String(Math.max(2 ** (32 - prefix) - 2, 0)));
+        styles.set(cellAddress(2, hostsRow), { align: 'right' });
+      }
+
+      function buildWorksheet() {
+        addBlock(1, 'Alap:', [172, 20, 10, 0], 24, true);
+        addBlock(12, 'Telephely 1:', [172, 20, 10, 0], 26, false);
+      }
       const saved = (() => {
         try { return JSON.parse(localStorage.getItem(storageKey) || 'null'); }
         catch { return null; }
@@ -216,15 +259,7 @@
         Object.entries(saved.styles || {}).forEach(([key, value]) => styles.set(key, value));
         if (saved.title) document.getElementById('document-title').value = saved.title;
       } else {
-        initialData.forEach((row, rowIndex) => row.forEach((value, columnIndex) => {
-          values.set(cellAddress(columnIndex + 1, rowIndex + 1), String(value));
-        }));
-        for (let column = 1; column <= initialData[0].length; column += 1) {
-          styles.set(cellAddress(column, 1), { bold: true, fill: '#e8f3ed', color: '#164e3c' });
-        }
-        for (let column = 1; column <= 5; column += 1) {
-          styles.set(cellAddress(column, 7), { bold: true, fill: '#f1f5f2', color: '#20342b' });
-        }
+        buildWorksheet();
       }
 
       function tokenize(expression) {
@@ -366,6 +401,9 @@
       }
 
       function render() {
+        grid.style.gridTemplateColumns = `52px ${Array.from({ length: columns }, (_, index) => `${columnWidth(index + 1) * zoomScale}px`).join(' ')}`;
+        grid.style.gridTemplateRows = `${29 * zoomScale}px repeat(${rows}, ${29 * zoomScale}px)`;
+        grid.style.setProperty('--row-h', `${29 * zoomScale}px`);
         const fragment = document.createDocumentFragment();
         const corner = document.createElement('div');
         corner.className = 'corner';
@@ -373,7 +411,7 @@
         fragment.append(corner);
         for (let column = 1; column <= columns; column += 1) {
           const heading = document.createElement('div');
-          heading.className = `column-heading${activeCell.startsWith(columnName(column)) ? ' selected' : ''}`;
+          heading.className = `column-heading${activeCell.match(/^[A-Z]+/)[0] === columnName(column) ? ' selected' : ''}`;
           heading.textContent = columnName(column);
           heading.dataset.column = String(column);
           fragment.append(heading);
@@ -390,8 +428,6 @@
             cell.className = 'cell';
             if (selected.has(address)) cell.classList.add('selected');
             if ((values.get(address) || '').startsWith('=')) cell.classList.add('formula');
-            if (row === 1 && column <= 5) cell.classList.add('header-cell');
-            if (column >= 2 && column <= 4 && row >= 2 && row <= 7) cell.classList.add('currency');
             cell.textContent = displayValue(address);
             cell.dataset.address = address;
             cell.setAttribute('role', 'gridcell');
@@ -578,10 +614,8 @@
         persist(); render();
       });
       document.getElementById('zoom').addEventListener('input', (event) => {
-        const scale = Number(event.target.value) / 100;
-        document.documentElement.style.setProperty('--col-width', `${124 * scale}px`);
-        grid.style.gridTemplateRows = `29px repeat(${rows}, ${29 * scale}px)`;
-        grid.querySelectorAll('.cell').forEach((cell) => { cell.style.height = `${29 * scale}px`; });
+        zoomScale = Number(event.target.value) / 100;
+        render();
         document.getElementById('zoom-label').textContent = `${event.target.value}%`;
       });
       document.querySelectorAll('.menu-item[data-message]').forEach((button) => button.addEventListener('click', () => showToast(button.dataset.message)));
