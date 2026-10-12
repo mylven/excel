@@ -67,7 +67,7 @@
     .column-heading { top: 0; }
     .row-heading { left: 0; z-index: 1; }
     .column-heading.selected, .row-heading.selected { background: #e7eee9; color: var(--green-dark); font-weight: 700; }
-    .cell { min-width: 0; height: var(--row-h, 29px); padding: 4px 7px; overflow: hidden; border-right: 1px solid #edf0ed; border-bottom: 1px solid #edf0ed; background: #fff; color: #27342e; font-size: 12px; white-space: nowrap; outline: none; }
+    .cell { scroll-margin-top: 29px; min-width: 0; height: var(--row-h, 29px); padding: 4px 7px; overflow: hidden; border-right: 1px solid #edf0ed; border-bottom: 1px solid #edf0ed; background: #fff; color: #27342e; font-size: 12px; white-space: nowrap; outline: none; }
     .cell:focus { position: relative; z-index: 1; overflow: visible; border: 2px solid var(--green); padding: 3px 6px; box-shadow: 0 0 0 1px #fff; }
     .cell.selected { position: relative; z-index: 1; outline: 2px solid var(--green); outline-offset: -2px; }
     .cell.formula { color: #263d33; }
@@ -95,6 +95,7 @@
       .topbar { gap: 10px; padding: 0 14px; }
     }
     .cell.sticky-col { position: sticky; left: 52px; z-index: 1; background: #f4f7f5; }
+    .cell:not(.sticky-col) { scroll-margin-left: 202px; }
     .cell.sticky-col:focus, .cell.sticky-col.selected { position: sticky; }
     @media (pointer: coarse) {
       .formula-input, .name-box, .file-title, .select-control { font-size: 16px; }
@@ -564,7 +565,9 @@
         const movements = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0], Enter: [0, 1], Tab: [1, 0] };
         if (movements[event.key]) {
           event.preventDefault();
-          focusCell(cellAddress(Math.max(1, Math.min(columns, column + movements[event.key][0])), Math.max(1, Math.min(rows, row + movements[event.key][1]))), event.shiftKey);
+          const [dx, dy] = movements[event.key];
+          const back = event.shiftKey && (event.key === 'Tab' || event.key === 'Enter');
+          focusCell(cellAddress(Math.max(1, Math.min(columns, column + (back ? -dx : dx))), Math.max(1, Math.min(rows, row + (back ? -dy : dy)))), event.shiftKey && !back);
         } else if (event.key === 'F2') {
           event.preventDefault();
           cell.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
